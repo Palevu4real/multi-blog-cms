@@ -8,7 +8,7 @@ import { isSlugAvailable } from "@/lib/utils/blog-utils";
 // GET /api/blogs/[blogId] - Get a specific blog
 export async function GET(
   req: NextRequest,
-  { params }: { params: { blogId: string } }
+  { params }: { params: Promise<{ blogId: string }> }
 ) {
   try {
     const session = await auth();
@@ -19,7 +19,9 @@ export async function GET(
       );
     }
 
-    const blog = await getBlogWithAccess(session.user.id, params.blogId);
+    const { blogId } = await params;
+
+    const blog = await getBlogWithAccess(session.user.id, blogId);
     
     if (!blog) {
       return NextResponse.json(
@@ -30,9 +32,9 @@ export async function GET(
 
     // Get additional stats
     const stats = await prisma.$transaction([
-      prisma.post.count({ where: { blogId: params.blogId } }),
-      prisma.blogMember.count({ where: { blogId: params.blogId } }),
-      prisma.category.count({ where: { blogId: params.blogId } }),
+      prisma.post.count({ where: { blogId } }),
+      prisma.blogMember.count({ where: { blogId } }),
+      prisma.category.count({ where: { blogId } }),
     ]);
 
     return NextResponse.json({
@@ -55,7 +57,7 @@ export async function GET(
 // PATCH /api/blogs/[blogId] - Update blog settings
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { blogId: string } }
+  { params }: { params: Promise<{ blogId: string }> }
 ) {
   try {
     const session = await auth();
@@ -66,10 +68,12 @@ export async function PATCH(
       );
     }
 
+    const { blogId } = await params;
+
     // Check permission
     const hasAccess = await hasPermission(
       session.user.id,
-      params.blogId,
+      blogId,
       "manage_settings"
     );
 
@@ -90,20 +94,40 @@ export async function PATCH(
       );
     }
 
-    // If slug is being updated, check availability
+    // Prepare update data - only include fields that are provided
+    const updateData: any = {};
+    
+    if (validated.data.name !== undefined) {
+      updateData.name = validated.data.name;
+    }
+    if (validated.data.description !== undefined) {
+      updateData.description = validated.data.description;
+    }
+    if (validated.data.isPublic !== undefined) {
+      updateData.isPublic = validated.data.isPublic;
+    }
+    if (validated.data.timezone !== undefined) {
+      updateData.timezone = validated.data.timezone;
+    }
+    if (validated.data.logo !== undefined) {
+      updateData.logo = validated.data.logo;
+    }
+    
+    // Handle slug separately with availability check
     if (validated.data.slug) {
-      const isAvailable = await isSlugAvailable(validated.data.slug, params.blogId);
+      const isAvailable = await isSlugAvailable(validated.data.slug, blogId);
       if (!isAvailable) {
         return NextResponse.json(
           { error: "Slug is already taken" },
           { status: 409 }
         );
       }
+      updateData.slug = validated.data.slug;
     }
 
     const blog = await prisma.blog.update({
-      where: { id: params.blogId },
-      data: validated.data,
+      where: { id: blogId },
+      data: updateData,
     });
 
     return NextResponse.json({
@@ -123,7 +147,7 @@ export async function PATCH(
 // DELETE /api/blogs/[blogId] - Delete a blog
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { blogId: string } }
+  { params }: { params: Promise<{ blogId: string }> }
 ) {
   try {
     const session = await auth();
@@ -134,10 +158,12 @@ export async function DELETE(
       );
     }
 
+    const { blogId } = await params;
+
     // Check permission - only OWNER can delete
     const hasAccess = await hasPermission(
       session.user.id,
-      params.blogId,
+      blogId,
       "delete_blog"
     );
 
@@ -150,7 +176,7 @@ export async function DELETE(
 
     // Delete the blog (cascade will handle related records)
     await prisma.blog.delete({
-      where: { id: params.blogId },
+      where: { id: blogId },
     });
 
     return NextResponse.json({

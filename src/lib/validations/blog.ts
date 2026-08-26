@@ -11,9 +11,12 @@ export const createBlogSchema = z.object({
   timezone: z.string().default("UTC"),
 });
 
-// Blog update schema
+// Blog update schema - ADD slug here
 export const updateBlogSchema = z.object({
   name: z.string().min(1, "Blog name is required").max(100, "Blog name is too long").optional(),
+  slug: z.string().min(1, "Slug is required").max(100, "Slug is too long")
+    .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "Slug can only contain lowercase letters, numbers, and hyphens")
+    .optional(),  // ← Added slug here
   description: z.string().max(500, "Description is too long").optional(),
   isPublic: z.boolean().optional(),
   timezone: z.string().optional(),
@@ -34,5 +37,5 @@ export const updateMemberRoleSchema = z.object({
 // Slug check schema
 export const checkSlugSchema = z.object({
   slug: z.string().min(1, "Slug is required"),
-  blogId: z.string().optional(), // For update checks
+  blogId: z.string().optional(),
 });
