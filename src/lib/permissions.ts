@@ -1,16 +1,19 @@
 import { Role } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
+// Add to the Permission type
 export type Permission = 
   | "manage_members"
   | "manage_settings"
   | "publish_posts"
   | "edit_others_posts"
   | "manage_categories"
-  | "moderate_comments"
+  | "moderate_comments"      // ← New permission
   | "delete_blog"
-  | "view_analytics";
+  | "view_analytics"
+  | "comment_on_post";       // ← New permission
 
+// Add to permissionMatrix
 const permissionMatrix: Record<Permission, Role[]> = {
   delete_blog: ["OWNER"],
   manage_members: ["OWNER", "ADMIN"],
@@ -18,8 +21,9 @@ const permissionMatrix: Record<Permission, Role[]> = {
   publish_posts: ["OWNER", "ADMIN", "EDITOR"],
   edit_others_posts: ["OWNER", "ADMIN", "EDITOR"],
   manage_categories: ["OWNER", "ADMIN", "EDITOR"],
-  moderate_comments: ["OWNER", "ADMIN", "EDITOR"],
+  moderate_comments: ["OWNER", "ADMIN", "EDITOR"],  // ← New
   view_analytics: ["OWNER", "ADMIN", "EDITOR"],
+  comment_on_post: ["OWNER", "ADMIN", "EDITOR", "AUTHOR"],  // ← New - all roles can comment
 };
 
 export async function getUserRole(userId: string, blogId: string): Promise<Role | null> {
