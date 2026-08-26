@@ -1,49 +1,99 @@
-import { db } from '@/lib/db'
-import { auth } from '@/lib/auth'
-import type { Role } from '@prisma/client'
+import { Role } from "@prisma/client";
+import { prisma } from "@/lib/prisma";
 
-const ROLE_RANK: Record<Role, number> = {
-  AUTHOR: 1,
-  EDITOR: 2,
-  ADMIN: 3,
-  OWNER: 4,
+export type Permission = 
+  | "manage_members"
+  | "manage_settings"
+  | "publish_posts"
+  | "edit_others_posts"
+  | "manage_categories"
+  | "moderate_comments"
+  | "delete_blog"
+  | "view_analytics";
+
+const permissionMatrix: Record<Permission, Role[]> = {
+  delete_blog: ["OWNER"],
+  manage_members: ["OWNER", "ADMIN"],
+  manage_settings: ["OWNER", "ADMIN"],
+  publish_posts: ["OWNER", "ADMIN", "EDITOR"],
+  edit_others_posts: ["OWNER", "ADMIN", "EDITOR"],
+  manage_categories: ["OWNER", "ADMIN", "EDITOR"],
+  moderate_comments: ["OWNER", "ADMIN", "EDITOR"],
+  view_analytics: ["OWNER", "ADMIN", "EDITOR"],
+};
+
+export async function getUserRole(userId: string, blogId: string): Promise<Role | null> {
+  const member = await prisma.blogMember.findUnique({
+    where: {
+      userId_blogId: {
+        userId,
+        blogId,
+      },
+    },
+    select: {
+      role: true,
+    },
+  });
+
+  return member?.role || null;
 }
 
-export async function getCurrentUser() {
-  const session = await auth()
-  if (!session?.user?.id) return null
-  return session.user
+export async function hasPermission(
+  userId: string,
+  blogId: string,
+  permission: Permission
+): Promise<boolean> {
+  const role = await getUserRole(userId, blogId);
+  if (!role) return false;
+
+  const allowedRoles = permissionMatrix[permission];
+  return allowedRoles.includes(role);
 }
 
-/**
- * Throws if the current user isn't logged in, or doesn't hold at least
- * `minRole` on the given blog. Returns the membership row on success,
- * so callers can also read the exact role if needed.
- */
-export async function requireBlogRole(blogId: string, minRole: Role) {
-  const user = await getCurrentUser()
-  if (!user) {
-    throw new Error('UNAUTHENTICATED')
+export async function hasAnyPermission(
+  userId: string,
+  blogId: string,
+  permissions: Permission[]
+): Promise<boolean> {
+  for (const permission of permissions) {
+    if (await hasPermission(userId, blogId, permission)) {
+      return true;
+    }
   }
-
-  const membership = await db.blogMember.findUnique({
-    where: { userId_blogId: { userId: user.id, blogId } },
-  })
-
-  if (!membership || ROLE_RANK[membership.role] < ROLE_RANK[minRole]) {
-    throw new Error('FORBIDDEN')
-  }
-
-  return membership
+  return false;
 }
 
-export async function getUserBlogRole(blogId: string) {
-  const user = await getCurrentUser()
-  if (!user) return null
+export async function getBlogWithAccess(userId: string, blogId: string) {
+  const blog = await prisma.blog.findUnique({
+    where: { id: blogId },
+    include: {
+      members: {
+        where: { userId },
+        select: {
+          role: true,
+        },
+      },
+    },
+  });
 
-  const membership = await db.blogMember.findUnique({
-    where: { userId_blogId: { userId: user.id, blogId } },
-  })
+  if (!blog) return null;
+  if (blog.members.length === 0) return null;
 
-  return membership?.role ?? null
+  return {
+    ...blog,
+    role: blog.members[0].role,
+  };
+}
+
+export async function isBlogMember(userId: string, blogId: string): Promise<boolean> {
+  const member = await prisma.blogMember.findUnique({
+    where: {
+      userId_blogId: {
+        userId,
+        blogId,
+      },
+    },
+  });
+
+  return !!member;
 }
