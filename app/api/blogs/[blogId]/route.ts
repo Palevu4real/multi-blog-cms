@@ -21,12 +21,38 @@ export async function GET(
 
     const { blogId } = await params;
 
-    const blog = await getBlogWithAccess(session.user.id, blogId);
-    
+    // Get blog with access check and include members
+    const blog = await prisma.blog.findUnique({
+      where: { id: blogId },
+      include: {
+        members: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+                image: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
     if (!blog) {
       return NextResponse.json(
-        { error: "Blog not found or you don't have access" },
+        { error: "Blog not found" },
         { status: 404 }
+      );
+    }
+
+    // Check if user has access
+    const userMember = blog.members.find((m) => m.userId === session.user.id);
+    if (!userMember) {
+      return NextResponse.json(
+        { error: "You don't have access to this blog" },
+        { status: 403 }
       );
     }
 
@@ -37,8 +63,10 @@ export async function GET(
       prisma.category.count({ where: { blogId } }),
     ]);
 
+    // Return blog with members and stats
     return NextResponse.json({
       ...blog,
+      role: userMember.role,
       stats: {
         posts: stats[0],
         members: stats[1],
@@ -125,15 +153,35 @@ export async function PATCH(
       updateData.slug = validated.data.slug;
     }
 
-    const blog = await prisma.blog.update({
+    const updatedBlog = await prisma.blog.update({
       where: { id: blogId },
       data: updateData,
+      include: {
+        members: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+                image: true,
+              },
+            },
+          },
+        },
+      },
     });
+
+    // Get the user's role
+    const userMember = updatedBlog.members.find((m) => m.userId === session.user.id);
 
     return NextResponse.json({
       success: true,
       message: "Blog updated successfully",
-      blog,
+      blog: {
+        ...updatedBlog,
+        role: userMember?.role || null,
+      },
     });
   } catch (error) {
     console.error("Error updating blog:", error);
