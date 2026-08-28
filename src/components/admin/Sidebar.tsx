@@ -11,6 +11,7 @@ const navItems = [
   { name: "Categories", href: "/admin/categories", icon: "📂" },
   { name: "Tags", href: "/admin/tags", icon: "🏷️" },
   { name: "Comments", href: "/admin/comments", icon: "💬" },
+  { name: "Media", href: "/admin/media", icon: "🖼️" },  // ← Added
   { name: "Settings", href: "/admin/settings", icon: "⚙️" },
 ];
 

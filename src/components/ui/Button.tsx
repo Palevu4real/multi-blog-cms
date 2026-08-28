@@ -33,7 +33,6 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   children: ReactNode;
   variant?: "default" | "destructive" | "outline" | "secondary" | "ghost" | "link" | "success";
   size?: "default" | "sm" | "lg" | "icon";
-  asChild?: boolean;
 }
 
 export function Button({ className, variant, size, children, ...props }: ButtonProps) {
