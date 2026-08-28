@@ -13,12 +13,24 @@ interface Blog {
   role: string;
 }
 
+interface Category {
+  id: string;
+  name: string;
+}
+
+interface Tag {
+  id: string;
+  name: string;
+}
+
 export default function CreatePostPage() {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [blogs, setBlogs] = useState<Blog[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [tags, setTags] = useState<Tag[]>([]);
   const [formData, setFormData] = useState({
     blogId: "",
     title: "",
@@ -26,6 +38,8 @@ export default function CreatePostPage() {
     status: "DRAFT",
     excerpt: "",
     featuredImage: "",
+    categoryIds: [] as string[],
+    tagIds: [] as string[],
   });
 
   // Load user's blogs
@@ -37,7 +51,9 @@ export default function CreatePostPage() {
         if (response.ok) {
           setBlogs(data.blogs || []);
           if (data.blogs && data.blogs.length > 0) {
-            setFormData((prev) => ({ ...prev, blogId: data.blogs[0].id }));
+            const blogId = data.blogs[0].id;
+            setFormData((prev) => ({ ...prev, blogId }));
+            loadCategoriesAndTags(blogId);
           }
         }
       } catch (err) {
@@ -46,6 +62,32 @@ export default function CreatePostPage() {
     };
     loadBlogs();
   }, []);
+
+  const loadCategoriesAndTags = async (blogId: string) => {
+    try {
+      const [categoriesRes, tagsRes] = await Promise.all([
+        fetch(`/api/categories?blogId=${blogId}`, { credentials: "include" }),
+        fetch(`/api/tags?blogId=${blogId}`, { credentials: "include" }),
+      ]);
+      
+      const categoriesData = await categoriesRes.json();
+      const tagsData = await tagsRes.json();
+      
+      if (categoriesRes.ok) {
+        setCategories(categoriesData.categories || []);
+      }
+      if (tagsRes.ok) {
+        setTags(tagsData.tags || []);
+      }
+    } catch (err) {
+      console.error("Failed to load categories/tags:", err);
+    }
+  };
+
+  const handleBlogChange = (blogId: string) => {
+    setFormData((prev) => ({ ...prev, blogId, categoryIds: [], tagIds: [] }));
+    loadCategoriesAndTags(blogId);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -83,6 +125,16 @@ export default function CreatePostPage() {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
+  const handleMultiSelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const selectedOptions = Array.from(e.target.selectedOptions, (option) => option.value);
+    setFormData((prev) => ({ ...prev, categoryIds: selectedOptions }));
+  };
+
+  const handleTagMultiSelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const selectedOptions = Array.from(e.target.selectedOptions, (option) => option.value);
+    setFormData((prev) => ({ ...prev, tagIds: selectedOptions }));
+  };
+
   return (
     <div className="max-w-4xl">
       <h1 className="text-2xl font-bold text-gray-900 mb-6">Create New Post</h1>
@@ -109,7 +161,7 @@ export default function CreatePostPage() {
                 <select
                   name="blogId"
                   value={formData.blogId}
-                  onChange={handleChange}
+                  onChange={(e) => handleBlogChange(e.target.value)}
                   className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   {blogs.map((blog) => (
@@ -158,6 +210,54 @@ export default function CreatePostPage() {
               </p>
             </div>
 
+            {/* Categories */}
+            {categories.length > 0 && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Categories
+                </label>
+                <select
+                  multiple
+                  value={formData.categoryIds}
+                  onChange={handleMultiSelect}
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 min-h-[80px]"
+                >
+                  {categories.map((category) => (
+                    <option key={category.id} value={category.id}>
+                      {category.name}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-gray-500 mt-1">
+                  Hold Ctrl/Cmd to select multiple categories
+                </p>
+              </div>
+            )}
+
+            {/* Tags */}
+            {tags.length > 0 && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Tags
+                </label>
+                <select
+                  multiple
+                  value={formData.tagIds}
+                  onChange={handleTagMultiSelect}
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 min-h-[80px]"
+                >
+                  {tags.map((tag) => (
+                    <option key={tag.id} value={tag.id}>
+                      {tag.name}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-gray-500 mt-1">
+                  Hold Ctrl/Cmd to select multiple tags
+                </p>
+              </div>
+            )}
+
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Featured Image URL
@@ -184,9 +284,6 @@ export default function CreatePostPage() {
                 <option value="REVIEW">Review</option>
                 <option value="PUBLISHED">Published</option>
               </select>
-              <p className="text-xs text-gray-500 mt-1">
-                Draft: Work in progress. Review: Ready for review. Published: Live on the blog.
-              </p>
             </div>
           </CardContent>
         </Card>

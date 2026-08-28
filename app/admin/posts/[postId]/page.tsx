@@ -31,6 +31,18 @@ interface PostData {
   };
 }
 
+interface Category {
+  id: string;
+  name: string;
+  slug: string;
+}
+
+interface Tag {
+  id: string;
+  name: string;
+  slug: string;
+}
+
 export default function EditPostPage({ params }: { params: Promise<{ postId: string }> }) {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
@@ -40,12 +52,16 @@ export default function EditPostPage({ params }: { params: Promise<{ postId: str
   const [success, setSuccess] = useState("");
   const [post, setPost] = useState<PostData | null>(null);
   const [postId, setPostId] = useState<string>("");
+  const [allCategories, setAllCategories] = useState<Category[]>([]);
+  const [allTags, setAllTags] = useState<Tag[]>([]);
   const [formData, setFormData] = useState({
     title: "",
     content: null as any,
     status: "",
     excerpt: "",
     featuredImage: "",
+    categoryIds: [] as string[],
+    tagIds: [] as string[],
   });
 
   // Unwrap params
@@ -57,31 +73,53 @@ export default function EditPostPage({ params }: { params: Promise<{ postId: str
     unwrapParams();
   }, [params]);
 
-  // Load post data
+  // Load post data and categories/tags
   useEffect(() => {
     if (!postId) return;
 
-    const loadPost = async () => {
+    const loadData = async () => {
       try {
-        const response = await fetch(`/api/posts/${postId}`, { credentials: "include" });
-        const data = await response.json();
-        if (response.ok) {
-          setPost(data.post);
+        // Load post
+        const postResponse = await fetch(`/api/posts/${postId}`, { credentials: "include" });
+        const postData = await postResponse.json();
+        if (postResponse.ok) {
+          setPost(postData.post);
           setFormData({
-            title: data.post.title || "",
-            content: data.post.content || null,
-            status: data.post.status || "DRAFT",
-            excerpt: data.post.excerpt || "",
-            featuredImage: data.post.featuredImage || "",
+            title: postData.post.title || "",
+            content: postData.post.content || null,
+            status: postData.post.status || "DRAFT",
+            excerpt: postData.post.excerpt || "",
+            featuredImage: postData.post.featuredImage || "",
+            categoryIds: postData.post.categories?.map((c: Category) => c.id) || [],
+            tagIds: postData.post.tags?.map((t: Tag) => t.id) || [],
           });
         } else {
-          setError(data.error || "Failed to load post");
+          setError(postData.error || "Failed to load post");
+        }
+
+        // Load categories and tags for the blog
+        if (postData.post?.blogId) {
+          const blogId = postData.post.blogId;
+          const [categoriesRes, tagsRes] = await Promise.all([
+            fetch(`/api/categories?blogId=${blogId}`, { credentials: "include" }),
+            fetch(`/api/tags?blogId=${blogId}`, { credentials: "include" }),
+          ]);
+          
+          const categoriesData = await categoriesRes.json();
+          const tagsData = await tagsRes.json();
+          
+          if (categoriesRes.ok) {
+            setAllCategories(categoriesData.categories || []);
+          }
+          if (tagsRes.ok) {
+            setAllTags(tagsData.tags || []);
+          }
         }
       } catch (err) {
-        setError("Failed to load post");
+        setError("Failed to load data");
       }
     };
-    loadPost();
+    loadData();
   }, [postId]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -173,6 +211,16 @@ export default function EditPostPage({ params }: { params: Promise<{ postId: str
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
+  const handleMultiSelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const selectedOptions = Array.from(e.target.selectedOptions, (option) => option.value);
+    setFormData((prev) => ({ ...prev, categoryIds: selectedOptions }));
+  };
+
+  const handleTagMultiSelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const selectedOptions = Array.from(e.target.selectedOptions, (option) => option.value);
+    setFormData((prev) => ({ ...prev, tagIds: selectedOptions }));
+  };
+
   if (!post) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -240,6 +288,54 @@ export default function EditPostPage({ params }: { params: Promise<{ postId: str
                 placeholder="A short summary of your post..."
               />
             </div>
+
+            {/* Categories */}
+            {allCategories.length > 0 && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Categories
+                </label>
+                <select
+                  multiple
+                  value={formData.categoryIds}
+                  onChange={handleMultiSelect}
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 min-h-[80px]"
+                >
+                  {allCategories.map((category) => (
+                    <option key={category.id} value={category.id}>
+                      {category.name}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-gray-500 mt-1">
+                  Hold Ctrl/Cmd to select multiple categories
+                </p>
+              </div>
+            )}
+
+            {/* Tags */}
+            {allTags.length > 0 && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Tags
+                </label>
+                <select
+                  multiple
+                  value={formData.tagIds}
+                  onChange={handleTagMultiSelect}
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 min-h-[80px]"
+                >
+                  {allTags.map((tag) => (
+                    <option key={tag.id} value={tag.id}>
+                      {tag.name}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-gray-500 mt-1">
+                  Hold Ctrl/Cmd to select multiple tags
+                </p>
+              </div>
+            )}
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">

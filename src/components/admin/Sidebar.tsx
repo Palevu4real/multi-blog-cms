@@ -8,8 +8,8 @@ const navItems = [
   { name: "Dashboard", href: "/admin", icon: "📊" },
   { name: "Blogs", href: "/admin/blogs", icon: "📝" },
   { name: "Posts", href: "/admin/posts", icon: "📄" },
-  { name: "Categories", href: "/admin/categories", icon: "📂" },
-  { name: "Tags", href: "/admin/tags", icon: "🏷️" },
+  { name: "Categories", href: "/admin/categories", icon: "📂" },  // ← Added
+  { name: "Tags", href: "/admin/tags", icon: "🏷️" },               // ← Added
   { name: "Comments", href: "/admin/comments", icon: "💬" },
   { name: "Settings", href: "/admin/settings", icon: "⚙️" },
 ];
